@@ -1,0 +1,14 @@
+.git
+.gitignore
+.github
+.release-*
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+plugin/build
+plugin/src/*.egg-info
+*.whl
+dist
+build
+deployments/**/config/*.env
+!deployments/**/config/*.example.env

@@ -1,0 +1,25 @@
+# Local/private deployment state
+.env
+.env.*
+!.env.example
+**/config/*.env
+!**/config/*.example.env
+**/config/*.rollback-*.env
+
+# Built artifacts and local release evidence
+/dist/
+/build/
+plugin/build/
+*.egg-info/
+*.whl
+.release-sources/
+.release-evidence/
+.release-citations.json
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# macOS/editor
+.DS_Store
+.vscode/
+.idea/

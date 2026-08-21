@@ -1,0 +1,50 @@
+{
+  "dgx_spark_runtime": {
+    "source_repository_id": 1301198905,
+    "source_api": "https://api.github.com/repositories/1301198905",
+    "base_image_reference_env": "DSPARK_VLLM_BASE_IMAGE",
+    "registry_tag": "0.1.1",
+    "registry_digest": "sha256:a83948492cf13df455170fb42885f5ef4db54fefe0feff0f841ecbff464ac9d8",
+    "image_id": "sha256:3430d6614a8e2925f34d059af6caf05aff42387326db4d05639a60f10f2654d8",
+    "source_revision": "47503f8e38dadd4dededca798150db2619594fce",
+    "vllm": "0.25.2.dev0+g752a3a504.d20260714",
+    "transformers": "5.13.1"
+  },
+  "plugin_upstream": {
+    "repository": "https://github.com/FlyCockpit/DeepSeek-V4-Vision-2x-DGX-Sparks",
+    "revision": "7cb20472e0f007a0626bd22ed9f5e22a8825c7e1"
+  },
+  "plugin_artifact": {
+    "path": "wheels/dsv4_vision_vllm-0.1.1-py3-none-any.whl",
+    "size": 21996,
+    "sha256": "d208bec2478c0e498002baf444a79a6db0210bcc525a67c9f7d063037e771816",
+    "canonical_build_platform": "linux"
+  },
+  "derived_image": {
+    "local_tag": "anemll-dsv4-vision:0.1.1",
+    "local_build_image_id": "sha256:8cb57e0936c04d1961d8f70892cf6254af55f316add7f7733391d61d41664367"
+  },
+  "language_model": {
+    "repository": "cebeuq/DeepSeek-V4-Flash-0731-abliterated",
+    "revision": "21bd923c2574d9edcd7b914885024ce72fd5c076",
+    "weight_index_sha256": "a93ace48e04f89e17222353191d30a5ba5744cbb8176a7a4832221656ce2d545",
+    "weight_manifest_path": "LANGUAGE_WEIGHTS.sha256",
+    "weight_manifest_sha256": "6ddeea70678d7f11a6ea72514cbb799b7070617e9fa3d62f990722e27ba371f4",
+    "declared_base_model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "declared_base_revision": null
+  },
+  "vision_assets": {
+    "repository": "FlyCockpit/DeepSeek-V4-Flash-0731-vision",
+    "revision": "d8efc7dfaceee965164d95952e2498b60fee323c",
+    "files": {
+      "vision/tower/deepencoder_v2_tower.safetensors": {
+        "size": 906533408,
+        "sha256": "9dcf6803d4c6b63acc4008bc2409e599a2ab6e3886e241f1727f61550c300df5"
+      },
+      "vision/adapter/merged-004800-5af0c5.pt": {
+        "size": 40921678,
+        "sha256": "6d0235333941210666bf347abb95e334943ef3f230dac65b83551186925468ec"
+      }
+    }
+  }
+}
