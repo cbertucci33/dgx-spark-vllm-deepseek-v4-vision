@@ -4,6 +4,8 @@ A two-node vLLM deployment for serving our **[DeepSeek-V4-Flash-0731 Abliterated
 
 This repository is built specifically for that Hugging Face model. Stock Transformers and stock vLLM do not load its custom multimodal architecture correctly; use this pinned Anemll DSpark overlay and the launch flow below.
 
+**Current release:** **2.0** (`2.0`). It adds the reviewed DSpark head-sharing, prefix-cache replay, multimodal-layout, two-node image-identity, and acceptance-measurement fixes described in [`RELEASE_NOTES_2.0.md`](RELEASE_NOTES_2.0.md). The optional expanded DSpark draft-window override is deliberately not included.
+
 > **Repository shape:** this is not a vendored copy of all vLLM source. It is the publishable overlay that installs on the pinned Anemll DGX Spark runtime. The base image contains the tested vLLM fork; this repository contains the multimodal plugin, model assembler, deployment profiles, and validation suite. `SOURCE_PINS.json` identifies the upstream repository by numeric GitHub ID and immutable revision without embedding its legacy product identifier.
 
 ## Quick start: launch the model
@@ -17,7 +19,7 @@ cd dgx-spark-vllm-deepseek-v4-vision
 export DSPARK_VLLM_BASE_IMAGE="$(python3 scripts/resolve_dgx_spark_base.py)"
 docker build \
   --build-arg DSPARK_VLLM_BASE_IMAGE="$DSPARK_VLLM_BASE_IMAGE" \
-  -t anemll-dsv4-vision:0.1.1 .
+  -t anemll-dsv4-vision:0.1.1-dspark-headfix1 .
 
 cp deployments/anemll-vision/config/head.example.env \
    deployments/anemll-vision/config/head.env
@@ -46,23 +48,18 @@ The launcher starts the worker rank first, starts rank 0, and waits for bounded 
 
 See [Configure two nodes](#configure-two-nodes), [Launch](#launch), and [API smoke test](#api-smoke-test) below for the full deployment and validation flow.
 
-## Verified configuration
+## Pinned release contract
 
-| Setting | Qualified value |
+| Setting | Public value |
 |---|---|
-| Runtime base | Locally supplied digest-pinned Anemll DGX Spark image |
+| Runtime base | Digest-pinned Anemll DGX Spark image resolved from `SOURCE_PINS.json` |
 | Runtime digest | `sha256:a83948492cf13df455170fb42885f5ef4db54fefe0feff0f841ecbff464ac9d8` |
 | vLLM runtime version | `0.25.2.dev0+g752a3a504.d20260714` |
-| Hardware | two NVIDIA GB10 nodes |
-| Parallelism | tensor parallel 2 |
 | Model ID | `DeepSeek-V4-Flash-0731-Vision` |
-| Context / concurrency | `800000` tokens, `max_num_seqs=2` |
-| Memory utilization | `0.88` |
 | Main KV cache | `nvfp4_ds_mla`, block size 256 |
 | Speculation | native DSpark / EAGLE3 |
-| Measured admission | 1,791,777 tokens total; 191,777 tokens above 800K × 2 |
 
-The token result is profile- and hardware-specific. Re-measure it after changing runtime, graph mode, batching limits, model assets, cache format, or hardware.
+Machine-specific image IDs, host details, local paths, and deployment measurements are intentionally excluded. Rebuild the overlay, synchronize its content-addressed image ID across ranks, and run the complete live validation sequence on the target environment.
 
 ## Starting point and what we changed
 
@@ -72,6 +69,9 @@ We started from [`FlyCockpit/DeepSeek-V4-Vision-2x-DGX-Sparks@7cb2047`](https://
 - DeepEncoderV2 image preprocessing, aspect-aware tiling, projector loading, and image-embedding splicing.
 - Preservation of raw input token IDs for DeepSeek V4 hash-MoE routing.
 - Explicit delegation to the pinned native DeepSeek V4 implementation for DSpark/EAGLE3 behavior.
+- A fail-closed runtime patch that aliases the DSpark draft `lm_head` from the unwrapped language model for multimodal targets, inherits the DeepSeek target attention backend, selects the draft quantization config, and validates vocabulary-compatible weight sharing.
+- A fail-closed Anemll backport that preserves the DSpark sliding-attention window across prefix-cache hits by replaying the final draft window through the target model.
+- A live DSpark smoke gate that aggregates all exact Prometheus series, rejects counter resets and concurrent traffic, validates per-position acceptance shape, requires a minimum draft sample, and records acceptance rate and length. Its default 20% floor catches catastrophic regressions; it is not the expected-performance target.
 - A Transformers 5.13.1-compatible additive attention-mask path with deterministic tests.
 - A fail-closed Hugging Face model assembler with source/hash pins and atomic output.
 - Two-node worker-first launch scripts and bounded health checks.
@@ -99,12 +99,15 @@ Exact revisions, image digests, artifact hashes, and asset sizes are machine-rea
 
 ```text
 plugin/                         vLLM general plugin source
+runtime-patches/                 fail-closed patches for the pinned vLLM runtime
 scripts/assemble_hf_model.py    independent-model assembler
 tests/                          unit and live multimodal validation
 deployments/anemll-vision/      two-node compose and launch scripts
 model-release/                  HF model card, assembly notes, notices, checklist
 Dockerfile                      source-built overlay on the pinned Anemll image
 SOURCE_PINS.json                immutable provenance and artifact hashes
+CHANGELOG.md                     public release history
+RELEASE_NOTES_2.0.md             2.0 changes and qualification record
 ```
 
 Local `.env` profiles, rollback profiles, wheels, caches, and machine-specific release evidence are excluded by `.gitignore`.
@@ -127,7 +130,7 @@ The plugin is installed from source during the image build; no prebuilt wheel is
 export DSPARK_VLLM_BASE_IMAGE="$(python3 scripts/resolve_dgx_spark_base.py)"
 docker build \
   --build-arg DSPARK_VLLM_BASE_IMAGE="$DSPARK_VLLM_BASE_IMAGE" \
-  -t anemll-dsv4-vision:0.1.1 \
+  -t anemll-dsv4-vision:0.1.1-dspark-headfix1 \
   .
 ```
 
@@ -179,7 +182,20 @@ Edit both files. At minimum set:
 - worker SSH target and repository path;
 - the image tag built above.
 
-`DSPARK_VLLM_IMAGE_ID` is an optional host-local integrity gate. Leave it empty for a freshly built local image; local Docker image IDs are not portable across rebuilds or hosts. For a published image, replace the tag with an immutable registry digest.
+`start-cluster.sh` resolves `DSPARK_VLLM_IMAGE` on both nodes and aborts before either rank starts unless the content-addressed Docker image IDs match. `DSPARK_VLLM_IMAGE_ID` is an optional additional pin; when set, both nodes must match it. Rebuilds produce new IDs, so update the pin deliberately after a verified build. For a published image, also prefer an immutable registry digest over a mutable tag.
+
+The vision loader fails closed rather than serving randomly initialized or
+layout-incompatible vision modules:
+
+- `DSV4_VISION_TOWER` and `DSV4_VISION_ADAPTER` must identify existing files;
+- checkpoint `config.tiles` is authoritative;
+- `DSV4_VISION_TILES`, when set, must agree with checkpoint metadata;
+- legacy adapters without tile metadata require an explicit, verified
+  `DSV4_VISION_TILES` value.
+
+The Compose profiles intentionally expose only runtime settings consumed by the
+pinned implementation. Unsupported historical `VLLM_DSPARK_*` and
+`VLLM_DSV4_DSPARK_*` pseudo-controls are omitted.
 
 The qualified release values are already represented in the templates:
 
@@ -201,7 +217,7 @@ cd deployments/anemll-vision
 ./start-cluster.sh config/head.env config/worker.env
 ```
 
-The launcher starts the headless worker first, waits for its container, starts rank 0, and polls the API with a bounded readiness timeout.
+The launcher first proves that the image tag resolves to the same content-addressed image on both nodes. It then starts the headless worker, waits for its container, starts rank 0, and polls the API with a bounded readiness timeout. The speculative profile explicitly captures the full `MAX_NUM_SEQS * (MTP_NUM_TOKENS + 1)` CUDA-graph shape so Anemll does not truncate a 12-token maximum to its default 8-token capture bucket.
 
 Stop both ranks with:
 
@@ -247,7 +263,7 @@ Build the final image separately:
 export DSPARK_VLLM_BASE_IMAGE="$(python3 scripts/resolve_dgx_spark_base.py)"
 docker build \
   --build-arg DSPARK_VLLM_BASE_IMAGE="$DSPARK_VLLM_BASE_IMAGE" \
-  -t anemll-dsv4-vision:0.1.1 .
+  -t anemll-dsv4-vision:0.1.1-dspark-headfix1 .
 ```
 
 Live qualification additionally requires:
@@ -256,7 +272,8 @@ Live qualification additionally requires:
 2. `/health` and `/v1/models` responding;
 3. logs confirming `nvfp4_ds_mla`, native B12X, and DSpark/EAGLE3;
 4. measured cache admission above the intended aggregate token requirement;
-5. text and genuine image requests passing.
+5. text and genuine image requests passing;
+6. `tests/measure_vision_spec_rails.py` issuing up to `MAX_DSPARK_QUALIFICATION_REQUESTS` requests (default `8`) until it records an uncontaminated sample at or above `MIN_DSPARK_ACCEPTANCE_RATE` (default `0.20`) with at least `MIN_DSPARK_DRAFTS` drafts (default `8`), stable per-label counter identities, consistent per-position counters, and matching completion/generation token counts. Treat this only as a catastrophic-regression smoke floor; final qualification must compare representative text, genuine-image, and coding workloads at the same configured draft length against the historical acceptance and throughput range.
 
 ## Model-name changes
 

@@ -4,15 +4,25 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 
+uv_bin=uv
+if [[ "$(uname -s)" != "Linux" ]] && command -v uv.exe >/dev/null 2>&1; then
+  uv_bin=uv.exe
+fi
+
 python3 -m json.tool SOURCE_PINS.json >/dev/null
 python3 scripts/release_audit.py
 bash -n scripts/*.sh deployments/anemll-vision/*.sh
 
-uv run --python 3.12 --with pytest pytest -q \
+"$uv_bin" run --python 3.12 --with pytest pytest -q \
   tests/test_assemble_hf_model.py \
   tests/test_deepencoderv2_mask.py \
   tests/test_wrapper_interfaces.py \
-  tests/test_release_contract.py
+  tests/test_cluster_image_sync.py \
+  tests/test_release_contract.py \
+  tests/test_dspark_prefix_cache_patch.py \
+  tests/test_dspark_runtime_patch.py \
+  tests/test_dspark_acceptance.py \
+  tests/test_vision_layout.py
 
 if ! docker compose version >/dev/null 2>&1; then
   echo "Docker Compose is required for the release contract" >&2
@@ -25,11 +35,16 @@ for compose_file in docker-compose.yml docker-compose.nospec.yml; do
     config >/dev/null
 done
 
-build_a=$(mktemp -d)
-build_b=$(mktemp -d)
+if [[ -n "${LOCALAPPDATA:-}" ]]; then
+  temp_root=${LOCALAPPDATA//\\//}/Temp
+else
+  temp_root=${TMPDIR:-/tmp}
+fi
+build_a=$(mktemp -d "$temp_root/dsv4-wheel-a.XXXXXX")
+build_b=$(mktemp -d "$temp_root/dsv4-wheel-b.XXXXXX")
 trap 'rm -rf "$build_a" "$build_b"' EXIT
-SOURCE_DATE_EPOCH=1787270400 uv build --wheel --python 3.12 --out-dir "$build_a" ./plugin >/dev/null
-SOURCE_DATE_EPOCH=1787270400 uv build --wheel --python 3.12 --out-dir "$build_b" ./plugin >/dev/null
+SOURCE_DATE_EPOCH=1787270400 "$uv_bin" build --wheel --python 3.12 --out-dir "$build_a" ./plugin >/dev/null
+SOURCE_DATE_EPOCH=1787270400 "$uv_bin" build --wheel --python 3.12 --out-dir "$build_b" ./plugin >/dev/null
 cmp "$build_a"/*.whl "$build_b"/*.whl
 
 expected=$(python3 -c 'import json; print(json.load(open("SOURCE_PINS.json"))["plugin_artifact"]["sha256"])')

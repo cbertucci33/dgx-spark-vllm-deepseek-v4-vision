@@ -65,6 +65,13 @@ from vllm.multimodal.processing import (
 )
 from vllm.sequence import IntermediateTensors
 
+from dsv4_vision_vllm.vision_layout import (
+    require_vision_asset,
+    extract_metadata_tiles,
+    resolve_checkpoint_tiles,
+    validate_tower_state,
+)
+
 # --- frozen interface constants ---------------------------------------------
 IMAGE_TOKEN_ID = 129279
 IMAGE_TOKEN_STR = "<｜image｜>"
@@ -82,41 +89,35 @@ _TILES_CACHE: list = []
 
 
 def checkpoint_tiles() -> int:
-    """`tiles` the served checkpoint was TRAINED with, read from the checkpoint.
-
-    Read `tiles` from the checkpoint config; do not hardcode. Older tiles=0
-    adapters stay at a fixed 257 tokens per image.
-    """
+    """Read and validate the tile layout the served adapter was trained with."""
     if _TILES_CACHE:
         return _TILES_CACHE[0]
+
     override = os.environ.get("DSV4_VISION_TILES")
-    if override is not None:
-        _TILES_CACHE.append(int(override))
-        return _TILES_CACHE[0]
-    tiles = 0
+    metadata_tiles = None
     if ADAPTER_PATH and os.path.exists(ADAPTER_PATH):
         try:
-            ck = torch.load(ADAPTER_PATH, map_location="cpu", weights_only=False)
-            # The key is `config`. It is NOT `cfg` -- reading `cfg` returns None,
-            # falls through to 0, and would serve a TILED adapter with a 257-token
-            # layout: no error, just a layout the model never trained on.
-            meta = ck.get("config")
-            if meta is None:
-                meta = ck.get("cfg")
-            if meta is None:
-                # Older adapters may omit config entirely → treat as tiles=0.
-                print("[dsv4-vision] WARNING: no `config` in "
-                      f"{ADAPTER_PATH}; assuming tiles=0 (257 tokens/image). "
-                      "Set DSV4_VISION_TILES to override.", file=sys.stderr)
-            else:
-                tiles = int(meta.get("tiles", 0) if isinstance(meta, dict)
-                            else getattr(meta, "tiles", 0) or 0)
-                print(f"[dsv4-vision] checkpoint config.tiles={tiles} "
-                      f"({ADAPTER_PATH})", file=sys.stderr)
-        except Exception as exc:  # never fail startup on metadata
-            print(f"[dsv4-vision] WARNING: could not read config from "
-                  f"{ADAPTER_PATH}: {exc}; assuming tiles=0", file=sys.stderr)
-            tiles = 0
+            checkpoint = torch.load(
+                ADAPTER_PATH, map_location="cpu", weights_only=False
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"could not read vision adapter metadata from {ADAPTER_PATH}"
+            ) from exc
+        metadata = checkpoint.get("config")
+        if metadata is None:
+            metadata = checkpoint.get("cfg")
+        if metadata is not None:
+            metadata_tiles = extract_metadata_tiles(metadata)
+
+    tiles = resolve_checkpoint_tiles(
+        metadata_tiles=metadata_tiles,
+        override=override,
+    )
+    print(
+        f"[dsv4-vision] validated config.tiles={tiles} ({ADAPTER_PATH})",
+        file=sys.stderr,
+    )
     _TILES_CACHE.append(tiles)
     return tiles
 
@@ -360,28 +361,27 @@ class DeepseekV4VisionForCausalLM(
             build_sam_vit_b,
         )
 
+        tower_path = require_vision_asset("tower", TOWER_PATH)
+        adapter_path = require_vision_asset("adapter", ADAPTER_PATH)
+
         self.sam_model = build_sam_vit_b()
         self.qwen2_model = build_qwen2_decoder_as_encoder()
         self.adapter = Adapter()
 
-        if TOWER_PATH:
-            from safetensors.torch import load_file
+        from safetensors.torch import load_file
 
-            sd = load_file(TOWER_PATH)
-            remap = {
-                k[len("model."):]: v
-                for k, v in sd.items()
-                if k.startswith(("model.sam_model.", "model.qwen2_model."))
-            }
-            missing, unexpected = self.load_state_dict(remap, strict=False)
-            unexpected = [u for u in unexpected if u.startswith(("sam_model.", "qwen2_model."))]
-            if unexpected:
-                raise RuntimeError(f"tower unexpected keys: {unexpected[:3]}")
+        sd = load_file(str(tower_path))
+        remap = {
+            k[len("model."):]: v
+            for k, v in sd.items()
+            if k.startswith(("model.sam_model.", "model.qwen2_model."))
+        }
+        missing, unexpected = self.load_state_dict(remap, strict=False)
+        validate_tower_state(missing, unexpected)
 
-        if ADAPTER_PATH:
-            ckpt = torch.load(ADAPTER_PATH, map_location="cpu", weights_only=False)
-            state = ckpt.get("adapter", ckpt)
-            missing, unexpected = self.adapter.load_state_dict(state, strict=True)
+        ckpt = torch.load(adapter_path, map_location="cpu", weights_only=False)
+        state = ckpt.get("adapter", ckpt)
+        self.adapter.load_state_dict(state, strict=True)
 
         for p in self.sam_model.parameters():
             p.requires_grad_(False)

@@ -84,7 +84,12 @@ class AssembleHfModelTests(unittest.TestCase):
             source, assets, runtime, destination, source_pins = self._minimal_fixture(root)
             secret = root / "secret.txt"
             secret.write_text("must-not-be-published")
-            (source / "leak.txt").symlink_to(secret)
+            try:
+                (source / "leak.txt").symlink_to(secret)
+            except OSError as exc:
+                if getattr(exc, "winerror", None) == 1314:
+                    self.skipTest("Windows symlink privilege is unavailable")
+                raise
 
             result = subprocess.run(
                 [

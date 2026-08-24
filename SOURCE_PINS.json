@@ -8,7 +8,13 @@
     "image_id": "sha256:3430d6614a8e2925f34d059af6caf05aff42387326db4d05639a60f10f2654d8",
     "source_revision": "47503f8e38dadd4dededca798150db2619594fce",
     "vllm": "0.25.2.dev0+g752a3a504.d20260714",
-    "transformers": "5.13.1"
+    "transformers": "5.13.1",
+    "dspark_loader_sha256": "457c44aec45fe00780748c34288a091bd212d18b40b0d901a8f628640c0a2d24",
+    "dspark_loader_patched_sha256": "c50985fb2737417636c9e55a8decbcff28083909a9aa4d97c0129e70b7c390b3",
+    "kv_cache_manager_sha256": "be9c50918c8cd01736102de4020e2a9a8650675bcd4eb4227d40d2bede6bb853",
+    "kv_cache_manager_patched_sha256": "6c599def2dcdae6222dbb68a897541276b92b209a7ddb4026822b2cf489f1144",
+    "scheduler_sha256": "e25d4c9a95abdbe8e516714ed02574d929ca0d5e8c11c4cc73b84d3a3b905443",
+    "scheduler_patched_sha256": "5af11de059edfa7f1a62adbf3cae85b37c5801527b02802885654d54f41655d8"
   },
   "plugin_upstream": {
     "repository": "https://github.com/FlyCockpit/DeepSeek-V4-Vision-2x-DGX-Sparks",
@@ -16,13 +22,12 @@
   },
   "plugin_artifact": {
     "path": "wheels/dsv4_vision_vllm-0.1.1-py3-none-any.whl",
-    "size": 21996,
-    "sha256": "d208bec2478c0e498002baf444a79a6db0210bcc525a67c9f7d063037e771816",
-    "canonical_build_platform": "linux"
+    "canonical_build_platform": "linux",
+    "size": 22903,
+    "sha256": "eec174761db17b4e811ec13b27948e996686d78721251a7b436a9c41c176a0f4"
   },
   "derived_image": {
-    "local_tag": "anemll-dsv4-vision:0.1.1",
-    "local_build_image_id": "sha256:8cb57e0936c04d1961d8f70892cf6254af55f316add7f7733391d61d41664367"
+    "local_tag": "anemll-dsv4-vision:0.1.1-dspark-headfix1"
   },
   "language_model": {
     "repository": "cebeuq/DeepSeek-V4-Flash-0731-abliterated",
