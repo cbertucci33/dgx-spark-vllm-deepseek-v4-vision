@@ -46,6 +46,7 @@ def test_release_image_contract_is_consistent() -> None:
         assert base[key] in prefix_patcher
     assert "ARG DSPARK_VLLM_BASE_IMAGE" in dockerfile
     assert "FROM ${DSPARK_VLLM_BASE_IMAGE}" in dockerfile
+    assert dockerfile.count("| tail -n 1") == 3
     readme = (ROOT / "README.md").read_text()
     assert tag in readme
     build_helper = (ROOT / "scripts/build-image.sh").read_text()
