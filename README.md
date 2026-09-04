@@ -1,6 +1,6 @@
 # DGX Spark vLLM deployment for DeepSeek V4 Vision
 
-A two-node vLLM deployment for serving our **[DeepSeek-V4-Flash-0731 Abliterated Vision](https://huggingface.co/cbert33/DeepSeek-V4-Flash-0731-abliterated-vision)** model on NVIDIA DGX Spark / GB10 systems through an OpenAI-compatible API.
+A two-node vLLM deployment for serving our **[DeepSeek-V4-Flash-0731 Abliterated Vision v2](https://huggingface.co/cbert33/DeepSeek-V4-Flash-0731-abliterated-vision-v2)** model on NVIDIA DGX Spark / GB10 systems through an OpenAI-compatible API.
 
 This repository is built specifically for that Hugging Face model. Stock Transformers and stock vLLM do not load its custom multimodal architecture correctly; use this pinned Anemll DSpark overlay and the launch flow below.
 
@@ -79,7 +79,7 @@ We started from [`FlyCockpit/DeepSeek-V4-Vision-2x-DGX-Sparks@7cb2047`](https://
 
 ## Recommended usage
 
-- Use this repository with [`cbert33/DeepSeek-V4-Flash-0731-abliterated-vision`](https://huggingface.co/cbert33/DeepSeek-V4-Flash-0731-abliterated-vision); stock vLLM does not provide this custom multimodal architecture.
+- Use this repository with [`cbert33/DeepSeek-V4-Flash-0731-abliterated-vision-v2`](https://huggingface.co/cbert33/DeepSeek-V4-Flash-0731-abliterated-vision-v2); stock vLLM does not provide this custom multimodal architecture.
 - Start with the supplied two-node `TP=2` profile on GB10 systems and re-measure cache capacity before changing context, concurrency, graph mode, or cache format.
 - Keep the worker-first startup order and run the text plus genuine-image smoke test before connecting clients.
 - Treat model outputs as untrusted. This is an abliterated checkpoint with reduced refusal behavior; operators are responsible for safeguards, legal compliance, and downstream use.
@@ -109,6 +109,10 @@ SOURCE_PINS.json                immutable provenance and artifact hashes
 CHANGELOG.md                     public release history
 RELEASE_NOTES_2.0.md             2.0 changes and qualification record
 ```
+
+`deployments/anemll-vision/` is the only supported launch path. The obsolete
+root-level 1.0 Compose and shell launchers were removed after release 2.0 so
+operators cannot accidentally select an incompatible profile.
 
 Local `.env` profiles, rollback profiles, wheels, caches, and machine-specific release evidence are excluded by `.gitignore`.
 
@@ -217,7 +221,12 @@ cd deployments/anemll-vision
 ./start-cluster.sh config/head.env config/worker.env
 ```
 
-The launcher first proves that the image tag resolves to the same content-addressed image on both nodes. It then starts the headless worker, waits for its container, starts rank 0, and polls the API with a bounded readiness timeout. The speculative profile explicitly captures the full `MAX_NUM_SEQS * (MTP_NUM_TOKENS + 1)` CUDA-graph shape so Anemll does not truncate a 12-token maximum to its default 8-token capture bucket.
+The launcher first proves that the image tag resolves to the same content-addressed image on both nodes. It then starts the headless worker, waits for its container, starts rank 0, and polls the API with a bounded readiness timeout. `MAX_CUDAGRAPH_CAPTURE_SIZE` is deliberately independent from `MAX_NUM_SEQS`; the qualified default is 12 because larger derived captures produced invalid text even though the server reported healthy.
+
+For deterministic cache sizing, set `KV_CACHE_MEMORY_BYTES` on both ranks (for
+example, `18G` means 18 binary GiB per GPU). When it is set, the launcher uses
+`--kv-cache-memory-bytes` and does not pass `--gpu-memory-utilization`. Leave it
+blank only when intentionally using the utilization fallback.
 
 Stop both ranks with:
 

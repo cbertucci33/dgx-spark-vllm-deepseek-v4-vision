@@ -4,7 +4,8 @@
 
 The checkpoint key is **`config`**, not `cfg`. Reading the wrong key returns
 `None`, falls through to tiles=0, and serves a 257-token layout with no error.
-Always run `scripts/preflight-adapter.sh` and confirm logs show:
+Confirm the startup logs from the supported `deployments/anemll-vision/`
+profile show:
 
 ```text
 [dsv4-vision] checkpoint config.tiles=2 (/ckpt/merged-004800-5af0c5.pt)
@@ -31,7 +32,7 @@ Non-login SSH often skips `~/.local/bin`. Use absolute paths or:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-`scripts/download-assets.sh` tries common locations.
+`scripts/download-vision-assets.sh` can fetch the pinned public vision assets.
 
 ## Overlay SSH vs real OpenSSH
 
@@ -65,4 +66,5 @@ docker compose -p dsv4vision logs -f
 # wait for: Application startup complete.
 ```
 
-Do not announce readiness until `scripts/smoke-vision.sh` succeeds.
+Do not announce readiness until the text request in the README and
+`tests/live_multimodal_smoke.py` both succeed.

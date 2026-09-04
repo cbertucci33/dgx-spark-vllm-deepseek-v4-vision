@@ -159,8 +159,9 @@ class DSparkRuntimePatchTests(unittest.TestCase):
         self.assertIn("COPY runtime-patches /tmp/dsv4-runtime-patches", dockerfile)
         self.assertIn("patch_dspark_loader.py", dockerfile)
         self.assertIn(
-            "vllm.v1.worker.gpu.spec_decode.dspark.utils", dockerfile
+            "vllm/v1/worker/gpu/spec_decode/dspark/utils.py", dockerfile
         )
+        self.assertNotIn("import vllm", dockerfile)
 
     def test_patcher_fails_closed_when_loader_shape_is_unknown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

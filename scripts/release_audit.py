@@ -14,6 +14,10 @@ AUDIT_PATH = "scripts/release_audit.py"
 MAX_FILE_BYTES = 5 * 1024 * 1024
 GENERIC_NAME = "Repository Maintainers"
 GENERIC_EMAIL = "noreply@github.com"
+APPROVED_COMMIT_IDENTITIES = {
+    (GENERIC_NAME, GENERIC_EMAIL),
+    ("Carmen Bertucci", "cbertucci33@users.noreply.github.com"),
+}
 
 APPROVED_URL_NAMESPACES = {
     "github.com": {
@@ -39,6 +43,7 @@ APPROVED_NAME_LIKE_PHRASES = {
     "Additional Liability",
     "Anemll Torch",
     "Apache License",
+    "Carmen Bertucci",
     "Container Toolkit",
     "Copyright License",
     "Derivative Works",
@@ -100,7 +105,10 @@ SECRET_SIGNATURES = {
     "Bearer credential": re.compile(r"(?i)\bBearer[ \t]+[A-Za-z0-9._~+/-]{20,}\b"),
 }
 FORBIDDEN_LEGACY_PLATFORM_TERM = re.compile("gx" + "10", re.IGNORECASE)
-ALLOWED_EMAILS = {GENERIC_EMAIL}
+ALLOWED_EMAILS = {
+    GENERIC_EMAIL,
+    "cbertucci33@users.noreply.github.com",
+}
 HOST_ASSIGNMENT = re.compile(
     r"^[ \t]*(MASTER_ADDR|VLLM_HOST_IP|WORKER_HOST|WORKER_SSH|SSH_HOST|HOSTNAME)"
     r"[ \t]*[:=][ \t]*['\"]?([^'\"#\s]+)",
@@ -226,18 +234,18 @@ for commit in git("rev-list", "HEAD").decode().splitlines():
             continue
         scan_bytes(relative, git("cat-file", "blob", sha), commit[:12])
 
-# Every reachable author and committer must use the generic public identity.
+# Every reachable author and committer must use an explicitly approved public
+# identity. Carmen's GitHub noreply identity is public repository metadata and
+# does not disclose a private address.
 for line in git(
     "log", "HEAD", "--format=%H%x00%an%x00%ae%x00%cn%x00%ce"
 ).decode().splitlines():
     commit, author, author_email, committer, committer_email = line.split("\x00")
-    if [author, author_email, committer, committer_email] != [
-        GENERIC_NAME,
-        GENERIC_EMAIL,
-        GENERIC_NAME,
-        GENERIC_EMAIL,
-    ]:
-        errors.add(f"non-generic commit identity: {commit[:12]}")
+    if (
+        (author, author_email) not in APPROVED_COMMIT_IDENTITIES
+        or (committer, committer_email) not in APPROVED_COMMIT_IDENTITIES
+    ):
+        errors.add(f"unapproved commit identity: {commit[:12]}")
 
 # Annotated public tags must use the same generic identity.
 for tag in git("tag").decode().splitlines():

@@ -46,7 +46,9 @@ def test_release_image_contract_is_consistent() -> None:
         assert base[key] in prefix_patcher
     assert "ARG DSPARK_VLLM_BASE_IMAGE" in dockerfile
     assert "FROM ${DSPARK_VLLM_BASE_IMAGE}" in dockerfile
-    assert dockerfile.count("| tail -n 1") == 3
+    assert "import vllm" not in dockerfile
+    assert 'import sysconfig; print(sysconfig.get_paths()["purelib"])' in dockerfile
+    assert "__pycache__/utils.cpython-312.pyc" in dockerfile
     readme = (ROOT / "README.md").read_text()
     assert tag in readme
     build_helper = (ROOT / "scripts/build-image.sh").read_text()
@@ -71,6 +73,25 @@ def test_release_image_contract_is_consistent() -> None:
     assert "Docker image mismatch" in cluster_launcher
 
 
+def test_only_supported_v2_launcher_is_present() -> None:
+    legacy_paths = (
+        ".env.vision.example",
+        "docker-compose.vision.yml",
+        "scripts/download-assets.sh",
+        "scripts/preflight-adapter.sh",
+        "scripts/smoke-vision.sh",
+        "scripts/start-vision.sh",
+        "scripts/status-vision.sh",
+        "scripts/stop-vision.sh",
+    )
+    for path in legacy_paths:
+        assert not (ROOT / path).exists(), f"obsolete 1.0 launcher restored: {path}"
+
+    deployment = ROOT / "deployments/anemll-vision"
+    for path in ("docker-compose.yml", "start-cluster.sh", "start-node.sh", "stop-cluster.sh"):
+        assert (deployment / path).is_file(), f"missing supported 2.0 path: {path}"
+
+
 def test_compose_does_not_advertise_unimplemented_dspark_controls() -> None:
     unsupported = (
         "VLLM_DSPARK_CONFIDENCE_THRESHOLD",
@@ -91,19 +112,21 @@ def test_compose_does_not_advertise_unimplemented_dspark_controls() -> None:
             assert variable not in compose, f"{name} exposes unused {variable}"
 
 
-def test_speculative_compose_captures_the_full_dspark_batch_shape() -> None:
+def test_speculative_compose_uses_explicit_safe_capture_limit() -> None:
     compose = (
         ROOT / "deployments/anemll-vision/docker-compose.yml"
     ).read_text()
 
-    expected_size = "$$(( ${MAX_NUM_SEQS:-6} * (${MTP_NUM_TOKENS:-3} + 1) ))"
-    assert f"CAPTURE_SIZE={expected_size};" in compose
+    assert "CAPTURE_SIZE=${MAX_CUDAGRAPH_CAPTURE_SIZE:-12};" in compose
+    assert "MAX_NUM_SEQS:-6} *" not in compose
     assert (
         'COMPILATION_CONFIG="{\\"cudagraph_capture_sizes\\":'
         '[1,2,4,8,$${CAPTURE_SIZE}]}";'
     ) in compose
     assert "--max-cudagraph-capture-size $${CAPTURE_SIZE}" in compose
     assert '--compilation-config "$${COMPILATION_CONFIG}"' in compose
+    assert '--kv-cache-memory-bytes $${KV_CACHE_MEMORY_BYTES}' in compose
+    assert 'CACHE_ARGS="--gpu-memory-utilization ${GPU_MEMORY_UTILIZATION:-0.80}"' in compose
 
 
 def test_base_image_resolver_builds_the_pinned_reference() -> None:

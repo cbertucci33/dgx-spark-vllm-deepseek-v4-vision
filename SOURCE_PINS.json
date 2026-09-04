@@ -24,7 +24,7 @@
     "path": "wheels/dsv4_vision_vllm-0.1.1-py3-none-any.whl",
     "canonical_build_platform": "linux",
     "size": 22903,
-    "sha256": "eec174761db17b4e811ec13b27948e996686d78721251a7b436a9c41c176a0f4"
+    "sha256": "ca5f2863545c5e9d5a5593b1c5e294ecf317995bbb5343dcb99e533965448d20"
   },
   "derived_image": {
     "local_tag": "anemll-dsv4-vision:0.1.1-dspark-headfix1"

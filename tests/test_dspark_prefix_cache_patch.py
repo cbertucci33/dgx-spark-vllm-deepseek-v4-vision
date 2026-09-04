@@ -75,8 +75,9 @@ class DSparkPrefixCachePatchTests(unittest.TestCase):
         dockerfile = (ROOT / "Dockerfile").read_text()
 
         self.assertIn("patch_dspark_prefix_cache.py", dockerfile)
-        self.assertIn("vllm.v1.core.kv_cache_manager", dockerfile)
-        self.assertIn("vllm.v1.core.sched.scheduler", dockerfile)
+        self.assertIn("vllm/v1/core/kv_cache_manager.py", dockerfile)
+        self.assertIn("vllm/v1/core/sched/scheduler.py", dockerfile)
+        self.assertNotIn("import vllm", dockerfile)
 
 
 if __name__ == "__main__":
