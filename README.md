@@ -27,7 +27,7 @@ cp deployments/anemll-vision/config/worker.example.env \
    deployments/anemll-vision/config/worker.env
 ```
 
-Edit `head.env` and `worker.env` with the actual model path, fabric addresses/interfaces, worker SSH target, repository path, and image tag for both nodes. Do not copy the example network values blindly. Synchronize this repository and the [model directory](https://huggingface.co/cbert33/DeepSeek-V4-Flash-0731-abliterated-vision) to the worker, then launch from the head node:
+Edit `head.env` and `worker.env` with the actual model path, fabric addresses/interfaces, worker SSH target, repository path, and image tag for both nodes. Do not copy the example network values blindly. Synchronize this repository and the canonical [DeepSeek V4 Flash 0731 abliterated vision v2 model](https://huggingface.co/cbert33/DeepSeek-V4-Flash-0731-abliterated-vision-v2) to the worker, then launch from the head node:
 
 ```bash
 cd deployments/anemll-vision
