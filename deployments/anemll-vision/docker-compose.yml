@@ -103,7 +103,7 @@ services:
         CAPTURE_SIZE=${MAX_CUDAGRAPH_CAPTURE_SIZE:-12};
         COMPILATION_CONFIG="{\"cudagraph_capture_sizes\":[1,2,4,8,$${CAPTURE_SIZE}]}";
         if [ -n "$${KV_CACHE_MEMORY_BYTES:-}" ]; then
-          CACHE_ARGS="--kv-cache-memory-bytes $${KV_CACHE_MEMORY_BYTES}";
+          CACHE_ARGS="--kv-cache-memory-bytes $${KV_CACHE_MEMORY_BYTES} --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION:-0.80}";
         else
           CACHE_ARGS="--gpu-memory-utilization ${GPU_MEMORY_UTILIZATION:-0.80}";
         fi;

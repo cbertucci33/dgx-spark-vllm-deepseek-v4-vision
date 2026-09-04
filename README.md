@@ -224,9 +224,11 @@ cd deployments/anemll-vision
 The launcher first proves that the image tag resolves to the same content-addressed image on both nodes. It then starts the headless worker, waits for its container, starts rank 0, and polls the API with a bounded readiness timeout. `MAX_CUDAGRAPH_CAPTURE_SIZE` is deliberately independent from `MAX_NUM_SEQS`; the qualified default is 12 because larger derived captures produced invalid text even though the server reported healthy.
 
 For deterministic cache sizing, set `KV_CACHE_MEMORY_BYTES` on both ranks (for
-example, `18G` means 18 binary GiB per GPU). When it is set, the launcher uses
-`--kv-cache-memory-bytes` and does not pass `--gpu-memory-utilization`. Leave it
-blank only when intentionally using the utilization fallback.
+example, `18G` means 18 binary GiB per GPU). That value is authoritative for KV
+allocation. vLLM still requires `GPU_MEMORY_UTILIZATION` for its independent
+startup free-memory guard, but documents that it is ignored for cache sizing
+when `--kv-cache-memory-bytes` is present. Leave `KV_CACHE_MEMORY_BYTES` blank
+only when intentionally using utilization-based cache allocation.
 
 Stop both ranks with:
 

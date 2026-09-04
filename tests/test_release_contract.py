@@ -126,7 +126,10 @@ def test_speculative_compose_uses_explicit_safe_capture_limit() -> None:
     assert "--max-cudagraph-capture-size $${CAPTURE_SIZE}" in compose
     assert '--compilation-config "$${COMPILATION_CONFIG}"' in compose
     assert 'KV_CACHE_MEMORY_BYTES: "${KV_CACHE_MEMORY_BYTES:-}"' in compose
-    assert '--kv-cache-memory-bytes $${KV_CACHE_MEMORY_BYTES}' in compose
+    assert (
+        'CACHE_ARGS="--kv-cache-memory-bytes $${KV_CACHE_MEMORY_BYTES} '
+        '--gpu-memory-utilization ${GPU_MEMORY_UTILIZATION:-0.80}"' in compose
+    )
     assert 'CACHE_ARGS="--gpu-memory-utilization ${GPU_MEMORY_UTILIZATION:-0.80}"' in compose
 
 
